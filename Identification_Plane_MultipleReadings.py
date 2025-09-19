@@ -1,0 +1,329 @@
+import matplotlib.pyplot as plt
+import numpy as np
+from Define_Line import line
+from Define_Plane import plane
+from Define_Plane import plane_normal
+from Input_Data_Plane import plane_input_3_gaussian
+from Input_Data_Plane import plane_input_3_uniform
+from Input_Data_Plane import plane_input_3_poisson
+from Input_Data_Plane import plane_input_4
+from Input_Data_Plane import plane_input_5
+from Input_Data_Plane import plane_input_5_x
+from skspatial.objects import Plane, Points
+from skspatial.plotting import plot_3d
+pi = np.pi
+
+n = 3 # number of readings
+m = 3 # number of actuators
+
+R2_g = []
+theta_g = []
+D_g = []
+
+P = []
+points_sum = [0, 0, 0]
+
+## GAUSSIAN NOISE
+for i in range(n):
+    points, p1_real, p2_real, p3_real, n_real, d_real = plane_input_3_gaussian() # generating input data
+    for point in points:
+            P.append(point.tolist())
+    for j in range(m):
+        # ax_3d.scatter(points[j][0], points[j][1], points[j][2], color='g', marker='o') delete?
+        points_sum += points[j]
+
+    # best fit plane
+    points_SK = Points(P) # creates Points object using skspatial library
+    plane_fit = Plane.best_fit(points_SK)
+    n_fit = plane_fit.normal
+    d_fit = plane_fit.distance_point([0, 0, 0])
+    if np.dot(n_real, n_fit) < 0: # checking if normal vectors are in general same direction
+        n_fit = -n_fit
+    if d_real*d_fit < 0:
+        d_fit = -d_fit
+    # xx_fit, yy_fit, zz_fit, n_fit, d_fit = plane_normal(n_fit[0], n_fit[1], n_fit[2], d_fit) get ready to delete
+
+    ## ANALYSIS
+
+    # R SQUARED VALUE OF FITTED PLANE
+    centroid = np.mean(points_SK, axis=0) # Calculate the total sum of squares
+    TSS = np.sum(np.linalg.norm(points_SK - centroid, axis=1) ** 2)
+    distances = np.abs(np.dot(points_SK - plane_fit.point, plane_fit.normal))   # Calculate the sum of squares of residuals (RSS)
+    RSS = np.sum(distances ** 2)
+    rsquared = 1 - (RSS / TSS)   # Calculate R-squared
+    R2_g.append(rsquared)
+
+    # ANGLE DIFFERENCE BETWEEN NORMAL VECTORS
+    normal_diff = np.arccos(np.dot(n_real,n_fit)) # angle between both normals
+    if np.dot(n_real, n_fit) < 0:
+        normal_diff = np.pi - normal_diff
+    theta_g.append(normal_diff)
+
+    # DISTANCE BETWEEN REAL AND DETECTED PLANE
+    a1, a2, a3 = point_avg = points_sum/((i+1)*m)
+    b1, b2, b3 = point_avg + n_fit
+    xx_line, yy_line, zz_line, a_line, b_line = line(a1, a2, a3, b1, b2, b3)
+    # Finding Intersection of line through point_avg with detected plane
+    if np.dot(b_line, n_fit) == 0:
+        if np.dot(a_line, n_fit) == d_fit:
+            print("Infinite solutions. The line and plane coincide.")
+        else:
+            print("No solution. The line and plane are parallel.")
+    else:
+        lmbda_intersect = (d_fit - np.dot(a_line, n_fit)) / np.dot(b_line, n_fit)
+        intersect_fit = np.array(a_line) + lmbda_intersect * np.array(b_line)
+
+    if np.dot(b_line, n_real) == 0:
+        if np.dot(a_line, n_real) == d_real:
+            print("Infinite solutions. The line and plane coincide.")
+        else:
+            print("No solution. The line and plane are parallel.")
+    else:
+        lmbda_intersect = (d_real - np.dot(a_line, n_real)) / np.dot(b_line, n_real)
+        intersect_real = np.array(a_line) + lmbda_intersect * np.array(b_line)
+    plane_distance = np.linalg.norm(intersect_fit - intersect_real)
+    D_g.append(plane_distance)
+
+    print(plane_distance)
+
+## UNIFORM NOISE
+R2_u = []
+theta_u = []
+D_u = []
+P = []
+points_sum = [0, 0, 0]
+
+for i in range(n):
+    points, p1_real, p2_real, p3_real, n_real, d_real = plane_input_3_uniform() # generating input data
+    for point in points:
+            P.append(point.tolist())
+    for j in range(m):
+        points_sum += points[j]
+
+    # best fit plane
+    points_SK = Points(P) # creates Points object using skspatial library
+    plane_fit = Plane.best_fit(points_SK)
+    n_fit = plane_fit.normal
+    d_fit = plane_fit.distance_point([0, 0, 0])
+    if np.dot(n_real, n_fit) < 0: # checking if normal vectors are in general same direction
+        n_fit = -n_fit
+    if d_real*d_fit < 0:
+        d_fit = -d_fit
+
+    ## ANALYSIS
+
+    # R SQUARED VALUE OF FITTED PLANE
+
+    # Calculate the total sum of squares
+    centroid = np.mean(points_SK, axis=0)
+    TSS = np.sum(np.linalg.norm(points_SK - centroid, axis=1) ** 2)
+
+    # Calculate the sum of squares of residuals (RSS)
+    distances = np.abs(np.dot(points_SK - plane_fit.point, plane_fit.normal))
+    RSS = np.sum(distances ** 2)
+
+    # Calculate R-squared
+    rsquared = 1 - (RSS / TSS)
+    R2_u.append(rsquared)
+
+    # ANGLE DIFFERENCE BETWEEN NORMAL VECTORS
+    
+    normal_diff = np.arccos(np.dot(n_real,n_fit)) # angle between both normals
+    if np.dot(n_real, n_fit) < 0:
+        normal_diff = np.pi - normal_diff
+    theta_u.append(normal_diff)
+
+    # DISTANCE BETWEEN REAL AND DETECTED PLANE
+
+    a1, a2, a3 = point_avg = points_sum/((i+1)*m)
+    b1, b2, b3 = point_avg + n_fit
+    xx_line, yy_line, zz_line, a_line, b_line = line(a1, a2, a3, b1, b2, b3)
+    # Finding Intersection of line through point_avg with detected plane
+    if np.dot(b_line, n_fit) == 0:
+        if np.dot(a_line, n_fit) == d_fit:
+            print("Infinite solutions. The line and plane coincide.")
+        else:
+            print("No solution. The line and plane are parallel.")
+    else:
+        lmbda_intersect = (d_fit - np.dot(a_line, n_fit)) / np.dot(b_line, n_fit)
+        intersect_fit = np.array(a_line) + lmbda_intersect * np.array(b_line)
+
+    if np.dot(b_line, n_real) == 0:
+        if np.dot(a_line, n_real) == d_real:
+            print("Infinite solutions. The line and plane coincide.")
+        else:
+            print("No solution. The line and plane are parallel.")
+    else:
+        lmbda_intersect = (d_real - np.dot(a_line, n_real)) / np.dot(b_line, n_real)
+        intersect_real = np.array(a_line) + lmbda_intersect * np.array(b_line)
+    plane_distance = np.linalg.norm(intersect_fit - intersect_real)
+    D_u.append(plane_distance)
+
+## POISSON NOISE
+R2_p = []
+theta_p = []
+D_p = []
+P = []
+points_sum = [0, 0, 0]
+
+for i in range(n):
+    points, p1_real, p2_real, p3_real, n_real, d_real = plane_input_3_poisson() # generating input data
+    for point in points:
+            P.append(point.tolist())
+    for j in range(m):
+        points_sum += points[j]
+
+    # best fit plane
+    points_SK = Points(P) # creates Points object using skspatial library
+    plane_fit = Plane.best_fit(points_SK)
+    n_fit = plane_fit.normal
+    d_fit = plane_fit.distance_point([0, 0, 0])
+    if np.dot(n_real, n_fit) < 0: # checking if normal vectors are in general same direction
+        n_fit = -n_fit
+    if d_real*d_fit < 0:
+        d_fit = -d_fit
+
+    ## ANALYSIS
+
+    # R SQUARED VALUE OF FITTED PLANE
+
+    # Calculate the total sum of squares
+    centroid = np.mean(points_SK, axis=0)
+    TSS = np.sum(np.linalg.norm(points_SK - centroid, axis=1) ** 2)
+
+    # Calculate the sum of squares of residuals (RSS)
+    distances = np.abs(np.dot(points_SK - plane_fit.point, plane_fit.normal))
+    RSS = np.sum(distances ** 2)
+
+    # Calculate R-squared
+    rsquared = 1 - (RSS / TSS)
+    R2_p.append(rsquared)
+
+    # ANGLE DIFFERENCE BETWEEN NORMAL VECTORS
+    
+    normal_diff = np.arccos(np.dot(n_real,n_fit)) # angle between both normals
+    if np.dot(n_real, n_fit) < 0:
+        normal_diff = np.pi - normal_diff
+    theta_p.append(normal_diff)
+
+    # DISTANCE BETWEEN REAL AND DETECTED PLANE
+
+    a1, a2, a3 = point_avg = points_sum/((i+1)*m)
+    b1, b2, b3 = point_avg + n_fit
+    xx_line, yy_line, zz_line, a_line, b_line = line(a1, a2, a3, b1, b2, b3)
+    # Finding Intersection of line through point_avg with detected plane
+    if np.dot(b_line, n_fit) == 0:
+        if np.dot(a_line, n_fit) == d_fit:
+            print("Infinite solutions. The line and plane coincide.")
+        else:
+            print("No solution. The line and plane are parallel.")
+    else:
+        lmbda_intersect = (d_fit - np.dot(a_line, n_fit)) / np.dot(b_line, n_fit)
+        intersect_fit = np.array(a_line) + lmbda_intersect * np.array(b_line)
+
+    if np.dot(b_line, n_real) == 0:
+        if np.dot(a_line, n_real) == d_real:
+            print("Infinite solutions. The line and plane coincide.")
+        else:
+            print("No solution. The line and plane are parallel.")
+    else:
+        lmbda_intersect = (d_real - np.dot(a_line, n_real)) / np.dot(b_line, n_real)
+        intersect_real = np.array(a_line) + lmbda_intersect * np.array(b_line)
+    plane_distance = np.linalg.norm(intersect_fit - intersect_real)
+    D_p.append(plane_distance)
+
+# Defining Real Plane
+plane_real = Plane.best_fit((p1_real, p2_real, p3_real))
+
+# Equation of the Plane
+n_r1, n_r2, n_r3 = np.round(n_real, 2)
+d_r = np.round(d_real, 2)
+n_d1, n_d2, n_d3 = np.round(n_fit, 2)
+d_d = np.round(d_fit, 2)
+print(f"The equation of the actual plane is {n_r1}x + {n_r2}y + {n_r3}z = {d_r}, where ({n_r1}, {n_r2}, {n_r3}) is a unit normal to the plane.")
+print(f"The equation of the detected plane is {n_d1}x + {n_d2}y + {n_d3}z = {d_d}, where ({n_d1}, {n_d2}, {n_d3}) is a unit normal to the plane.")
+
+# print("R-squared gaussian:", R2_g)
+# print("Normal Angle Difference gaussian:", theta_g)
+# print("Distance Between Planes gaussian:", D_g)
+
+# 3D plots
+
+# ax_3d.plot_surface(xx_real, yy_real, zz_real, alpha=0.5, label='Actual Plane')
+# ax_3d.plot_surface(xx_fit, yy_fit, zz_fit, alpha=0.5, label='Detected Plane')
+# ax_3d.scatter(intersect_real[0], intersect_real[1], intersect_real[2], color='k', marker='o', label='Real Plane Intersect')
+# ax_3d.scatter(intersect_fit[0], intersect_fit[1], intersect_fit[2], color='r', marker='o', label='Fitted Plane Intersect')
+# ax_3d.set_title('3D Plot')
+# ax_3d.legend(prop={'size': 8})
+# ax_3d.set_xlabel('X')
+# ax_3d.set_ylabel('Y')
+# ax_3d.set_zlabel('Z')
+
+# ax_3d.set_xlim(-10, 10)
+# ax_3d.set_ylim(-10, 10)
+# ax_3d.set_zlim(-10, 10)
+
+int_fit = Points([intersect_fit])
+int_real = Points([intersect_real])
+plot_3d(
+    plane_fit.plotter(alpha=0.5, lims_x=(-10, 10), lims_y=(-10, 10)),
+    plane_real.plotter(alpha=0.5, lims_x=(-10, 10), lims_y=(-10, 10)),
+    points_SK.plotter(c='k', s=15, depthshade=False),
+    int_fit.plotter(c='r', s=10, depthshade=False),
+    int_real.plotter(c='g', s=10, depthshade=False),
+)
+
+ax = plt.gca()
+
+# Set the font size of the tick labels for all three axes
+ax.tick_params(axis='x', labelsize=12)
+ax.tick_params(axis='y', labelsize=12)
+ax.tick_params(axis='z', labelsize=12)
+
+ax.set_xlabel('x [cm]', fontsize=14)
+ax.set_ylabel('y [cm]', fontsize=14)
+ax.set_zlabel('z [cm]', fontsize=14)
+
+plt.legend(['Detected Plane', 'Real Plane'], fontsize=10)
+
+# 2D plots
+fig_2d = plt.figure(figsize=(10, 8))
+font = 10
+# Plot 2D plot for Angle Difference vs. Number of Readings
+ax1 = fig_2d.add_subplot(311)
+ax1.plot(range(1, n+1), theta_g, linestyle='-', label='Gaussian Noise')
+ax1.plot(range(1, n+1), theta_u, linestyle='-', color='red', label='Uniform Noise')
+ax1.plot(range(1, n+1), theta_p, linestyle='-', color='green', label='Poisson Noise')
+ax1.set_xlabel('β')
+ax1.set_ylabel('θ [rad]')
+ax1.set_title('Angle Difference vs. Number of Readings')
+ax1.legend(fontsize = font)
+ax1.grid(True)
+ax1.set_ylim(0, 0.06)
+
+# Plot 2D plot for R^2 vs. Number of Readings
+ax2 = fig_2d.add_subplot(313)
+ax2.plot(range(1, n+1), R2_g, linestyle='-', marker='o', label='Gaussian Noise')
+ax2.plot(range(1, n+1), R2_u, linestyle='-', marker='o', color='red', label='Uniform Noise')
+ax2.plot(range(1, n+1), R2_p, linestyle='-', marker='o', color='green', label='Poisson Noise')
+ax2.set_xlabel('β')
+ax2.set_ylabel('R^2')
+ax2.set_title('R^2 vs. Number of Readings')
+ax2.legend(fontsize = font)
+ax2.grid(True)
+ax2.set_ylim(0.99, 1)
+
+# Plot 2D plot for Distance between Planes vs. Number of Readings
+ax3 = fig_2d.add_subplot(312)
+ax3.plot(range(1, n+1), D_g, linestyle='-', label='Gaussian Noise')
+ax3.plot(range(1, n+1), D_u, linestyle='-', color='red', label='Uniform Noise')
+ax3.plot(range(1, n+1), D_p, linestyle='-', color='green', label='Poisson Noise')
+ax3.set_xlabel('β')
+ax3.set_ylabel('δ [cm]')
+ax3.set_title('Distance between Planes vs. Number of Readings')
+ax3.legend(fontsize=font)
+ax3.grid(True)
+plt.tight_layout()
+
+# Show plots
+plt.show()
